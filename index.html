@@ -205,6 +205,23 @@ $('fixedDelete').onclick=()=>{if(confirm('删除这个固定开销项目？已�
 $('fixedList').addEventListener('dblclick',e=>{const row=e.target.closest('.item');if(!row)return;const idx=[...$('fixedList').children].indexOf(row);const f=state.fixedExpenses[idx];if(f)openFixed(f)});
 $('monthlyReportBtn').onclick=()=>{const months=Object.keys(state.monthlyReports||{}).sort();if(!months.length){alert('目前还没有已结束月份的报告。下个月开始，打开账本后会自动生成。');return;}showMonthlyReport(months[months.length-1]);};
 $('reportClose').onclick=()=>$('monthlyReportDialog').close();
+// 自动跟随手机系统本地日期；无需联网，跨午夜/跨月时同步首页月份和月报
+let lastDeviceDate=today();
+function syncDeviceDate(){
+ const now=today();
+ if(now===lastDeviceDate)return;
+ const previousMonth=lastDeviceDate.slice(0,7), currentMonth=now.slice(0,7);
+ lastDeviceDate=now;
+ // 如果用户原本正在看当前月份，跨月后自动切换到新月份；查看历史月份时不打断
+ if($('month').value===previousMonth)$('month').value=currentMonth;
+ const created=generatePendingMonthlyReports();
+ render();
+ if(created.length)showMonthlyReport(created[created.length-1]);
+}
+window.addEventListener('focus',syncDeviceDate);
+window.addEventListener('pageshow',syncDeviceDate);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncDeviceDate()});
+setInterval(syncDeviceDate,30000);
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 const newlyCreatedReports=generatePendingMonthlyReports();render();if(newlyCreatedReports.length)showMonthlyReport(newlyCreatedReports[newlyCreatedReports.length-1]);
 </script></body></html>
