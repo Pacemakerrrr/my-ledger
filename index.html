@@ -57,7 +57,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 <div class="field"><label>项目名称</label><input id="fixedName" maxlength="40" placeholder="例如 房租、手机费" required></div>
 <div class="field"><label>每月金额（EUR €）</label><input id="fixedAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="例如 500" required></div>
 <div class="field"><label>分类</label><select id="fixedCategory"><option>住房</option><option>家庭</option><option>通讯</option><option>交通</option><option>保险</option><option>订阅</option><option>其他</option></select></div>
-<div class="field"><label>每月到期日（仅作提醒）</label><input id="fixedDay" type="number" min="1" max="31" value="1" required></div>
+<div class="field"><label>每月到期日</label><input id="fixedDay" type="number" min="1" max="31" value="1" required></div>
 <div class="modalfoot"><button type="button" id="fixedCancel">关闭</button><button class="btn" type="submit">保存项目</button></div>
 <button type="button" id="fixedDelete" class="danger" style="display:none;border:0;background:none;margin-top:12px;padding:6px">删除此固定项目</button>
 </form></dialog>
@@ -84,9 +84,11 @@ function render(){
   const details=document.createElement('div');details.className='details';
   const b=document.createElement('b');b.textContent=f.name;
   const sm=document.createElement('small');sm.textContent='每月 '+f.day+' 日 · '+f.category+' · '+(isPaid?'已支付':'待支付');
-  details.append(b,sm);details.style.cursor='pointer';details.onclick=()=>openFixed(f);const amt=document.createElement('div');amt.className='amt';amt.textContent=euro(f.amount);
+  details.append(b,sm);
+  const amt=document.createElement('div');amt.className='amt';amt.textContent=euro(f.amount);
   const btn=document.createElement('button');btn.textContent=isPaid?'已支付 ✓':'确认已支付';btn.style.fontSize='11px';btn.style.padding='8px';btn.style.background=isPaid?'#e8f3ed':'#176b4a';btn.style.color=isPaid?'#176b4a':'white';btn.disabled=isPaid;
-  btn.onclick=()=>confirmFixedPaid(f,m);el.append(dot,details,amt,btn);$('fixedList').append(el);
+  btn.onclick=()=>confirmFixedPaid(f,m);
+  el.append(dot,details,amt,btn);$('fixedList').append(el);
  });
  $('entries').innerHTML=rows.length?'':'<div class="empty">这个月还没有账目。<br>点击上方按钮记下第一笔吧。</div>';
  rows.forEach(e=>{
@@ -95,7 +97,7 @@ function render(){
   const details=document.createElement('div');details.className='details';
   const b=document.createElement('b');b.textContent=e.category+(e.note?' · '+e.note:'');
   const sm=document.createElement('small');sm.textContent=e.date;
-  details.append(b,sm);details.style.cursor='pointer';details.onclick=()=>openFixed(f);
+  details.append(b,sm);
   const amt=document.createElement('div');amt.className='amt '+(e.kind==='收入'?'income':'expense');amt.textContent=(e.kind==='收入'?'+':'−')+euro(e.amount);
   el.append(dot,details,amt);el.addEventListener('click',()=>openEditor(e));$('entries').append(el);
  });
@@ -124,9 +126,18 @@ $('importBtn').onclick=()=>$('fileInput').click();
 $('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!Array.isArray(x.entries)||!x.budgets)throw Error();if(confirm('恢复备份会替换当前账本数据，建议先导出当前备份。继续吗？')){state=x;persist();alert('恢复成功')}}catch{alert('文件格式不正确，无法恢复')}e.target.value=''};
 let editingFixed=null;
 function openFixed(old=null){editingFixed=old?.id||null;$('fixedTitle').textContent=old?'编辑固定开销':'新增固定开销';$('fixedName').value=old?.name||'';$('fixedAmount').value=old?.amount??'';$('fixedCategory').value=old?.category||'其他';$('fixedDay').value=old?.day||1;$('fixedDelete').style.display=old?'block':'none';$('fixedDialog').showModal()}
-function confirmFixedPaid(f,m){const key=f.id+'_'+m;if(state.fixedPayments[key])return;if(!confirm('确认 '+f.name+' '+euro(f.amount)+' 已经支付？确认后会计入 '+m+' 的支出。'))return;const date=today();state.entries.push({id:crypto.randomUUID(),kind:'支出',amount:Number(f.amount),category:f.category,date,note:'固定开销：'+f.name,fixedId:f.id,fixedMonth:m,created:Date.now()});state.fixedPayments[key]=true;persist()}
-$('manageFixed').onclick=()=>openFixed();$('fixedCancel').onclick=()=>$('fixedDialog').close();
-$('fixedForm').onsubmit=e=>{e.preventDefault();const name=$('fixedName').value.trim(),amount=Number($('fixedAmount').value),day=Number($('fixedDay').value);if(!name||amount<=0||day<1||day>31)return;const item={id:editingFixed||crypto.randomUUID(),name,amount,category:$('fixedCategory').value,day};if(editingFixed)state.fixedExpenses=state.fixedExpenses.map(x=>x.id===editingFixed?item:x);else state.fixedExpenses.push(item);$('fixedDialog').close();persist()};
+function confirmFixedPaid(f,m){
+ const key=f.id+'_'+m;if(state.fixedPayments[key])return;
+ if(!confirm('确认 '+f.name+' '+euro(f.amount)+' 已经支付？确认后会计入 '+m+' 的支出。'))return;
+ state.entries.push({id:crypto.randomUUID(),kind:'支出',amount:Number(f.amount),category:f.category,date:today(),note:'固定开销：'+f.name,fixedId:f.id,fixedMonth:m,created:Date.now()});
+ state.fixedPayments[key]=true;persist();
+}
+$('manageFixed').onclick=()=>openFixed();
+$('fixedCancel').onclick=()=>$('fixedDialog').close();
+$('fixedForm').onsubmit=e=>{e.preventDefault();const name=$('fixedName').value.trim(),amount=Number($('fixedAmount').value),day=Number($('fixedDay').value);if(!name||amount<=0||day<1||day>31)return;
+ const item={id:editingFixed||crypto.randomUUID(),name,amount,category:$('fixedCategory').value,day};
+ if(editingFixed)state.fixedExpenses=state.fixedExpenses.map(x=>x.id===editingFixed?item:x);else state.fixedExpenses.push(item);
+ $('fixedDialog').close();persist()};
 $('fixedDelete').onclick=()=>{if(confirm('删除这个固定开销项目？已生成的历史支出记录不会删除。')){state.fixedExpenses=state.fixedExpenses.filter(x=>x.id!==editingFixed);$('fixedDialog').close();persist()}};
 $('fixedList').addEventListener('dblclick',e=>{const row=e.target.closest('.item');if(!row)return;const idx=[...$('fixedList').children].indexOf(row);const f=state.fixedExpenses[idx];if(f)openFixed(f)});
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
