@@ -21,7 +21,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid #a8d6bd;border-color:v
 .sectionhead{display:flex;justify-content:space-between;align-items:center;margin:22px 0 10px}.sectionhead h2{font-size:17px;margin:0}.list{display:grid;gap:8px}.item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;display:flex;align-items:center;gap:12px}.dot{width:40px;height:40px;border-radius:13px;background:#e8f3ed;display:grid;place-items:center;font-size:18px}.details{flex:1;min-width:0}.details b{display:block;font-size:14px}.details small{color:var(--muted)}.amt{font-weight:750;white-space:nowrap}.income{color:var(--green)}.expense{color:var(--red)}
 .empty{text-align:center;color:var(--muted);padding:28px 12px;background:#fff;border:1px dashed var(--line);border-radius:14px}
 .tools{display:flex;gap:8px;flex-wrap:wrap}.tools button{font-size:12px;padding:9px 11px}
-dialog{border:0;border-radius:20px;padding:0;width:min(92vw,440px);box-shadow:0 20px 60px #0003}dialog::backdrop{background:#14251dcc}.modal{padding:20px}.modal h2{margin:0 0 14px;font-size:19px}.field{display:grid;gap:6px;margin:11px 0}.field label{font-size:12px;color:var(--muted)}.field input,.field select{width:100%}.modalfoot{display:flex;gap:8px;margin-top:18px}.modalfoot button{flex:1}.danger{color:var(--red)!important}.budgetline{font-size:12px;color:var(--muted);margin-top:12px}.bar{height:7px;background:#ffffff40;border-radius:9px;overflow:hidden;margin-top:7px}.bar span{display:block;height:100%;background:#fff;width:0}
+dialog{border:0;border-radius:20px;padding:0;width:min(92vw,440px);box-shadow:0 20px 60px #0003}dialog::backdrop{background:#14251dcc}.modal{padding:20px}.modal h2{margin:0 0 14px;font-size:19px}.field{display:grid;gap:6px;margin:11px 0}.field label{font-size:12px;color:var(--muted)}
+#account{border:2px solid var(--green);background:#edf7f0;font-weight:700;font-size:16px;padding:14px} .accountHint{font-size:12px;color:var(--green);font-weight:650;margin-top:-5px}.field input,.field select{width:100%}.modalfoot{display:flex;gap:8px;margin-top:18px}.modalfoot button{flex:1}.danger{color:var(--red)!important}.budgetline{font-size:12px;color:var(--muted);margin-top:12px}.bar{height:7px;background:#ffffff40;border-radius:9px;overflow:hidden;margin-top:7px}.bar span{display:block;height:100%;background:#fff;width:0}
 footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 @media(min-width:520px){main{padding-top:28px}}
 
@@ -32,8 +33,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 <header class="top"><div><h1>我的账本</h1><div class="sub">离线记账 · 数据保存在此设备</div></div><span class="pill" id="offline">私人账本</span></header>
 <div class="month"><input id="month" type="month"><button id="thisMonth">本月</button></div>
 <section class="summary">
- <small>💰 当前累计总余额（上月结转 + 本月收入 − 本月支出）</small><div class="balance" id="balance">€0.00</div><div class="budgetline" id="openingBalanceText">本月期初余额 €0.00</div><div class="budgetline" id="balanceFormula">累计收入 €0.00 − 累计支出 €0.00</div>
- <div class="totals"><div><small>本月收入</small><strong id="income">€0.00</strong></div><div><small>本月支出</small><strong id="expense">€0.00</strong></div><div><small>本月结余（收入－支出）</small><strong id="monthlyNet">€0.00</strong></div></div>
+ <small>💰 当前累计总余额（上月结转 + 本月收入 − 本月支出）</small><div class="balance" id="balance">€0.00</div><div class="budgetline" id="openingBalanceText">本月期初余额 €0.00</div><div class="budgetline" id="balanceFormula">累计收入 €0.00 − 累计支出 €0.00</div><div class="totals" style="margin:10px 0"><div><small>🏦 银行卡余额</small><strong id="bankBalance">€0.00</strong></div><div><small>💵 现金余额</small><strong id="cashBalance">€0.00</strong></div></div>  <div class="totals"><div><small>本月收入</small><strong id="income">€0.00</strong></div><div><small>本月支出</small><strong id="expense">€0.00</strong></div><div><small>本月结余（收入－支出）</small><strong id="monthlyNet">€0.00</strong></div></div>
  <div class="budgetline" id="budgetText">尚未设置月预算</div><div class="bar"><span id="budgetBar"></span></div>
 </section>
 <div class="actions"><button class="btn" id="addExpense">− 记一笔支出</button><button class="btn out" id="addIncome">＋ 记一笔收入</button></div>
@@ -50,6 +50,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 <div class="field"><label>类型</label><select id="kind"><option value="支出">支出</option><option value="收入">收入</option></select></div>
 <div class="field"><label>金额（EUR €）</label><input id="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="例如 12.50" required></div>
 <div class="field"><label>分类</label><select id="category"></select></div>
+<div class="field"><label>💳 这笔钱使用哪个账户？（必选）</label><select id="account" required><option value="银行卡">🏦 银行卡</option><option value="现金">💵 现金</option></select><div class="accountHint">收入选择钱存入哪里；支出选择钱从哪里扣除。</div></div>
 <div class="field"><label>日期</label><input id="date" type="date" required></div>
 <div class="field"><label>备注（可选）</label><input id="note" maxlength="100" placeholder="写点说明"></div>
 <div class="modalfoot"><button type="button" id="cancel">取消</button><button class="btn" type="submit">保存</button></div>
@@ -61,6 +62,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 <div class="field"><label>每月金额（EUR €）</label><input id="fixedAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="例如 500" required></div>
 <div class="field"><label>分类</label><select id="fixedCategory"><option>住房</option><option>家庭</option><option>通讯</option><option>交通</option><option>保险</option><option>订阅</option><option>其他</option></select></div>
 <div class="field"><label>每月到期日</label><input id="fixedDay" type="number" min="1" max="31" value="1" required></div>
+<div class="field"><label>💳 从哪个账户支付？</label><select id="fixedAccount"><option value="银行卡">🏦 银行卡</option><option value="现金">💵 现金</option></select></div>
 <div class="modalfoot"><button type="button" id="fixedCancel">关闭</button><button class="btn" type="submit">保存项目</button></div>
 <button type="button" id="fixedDelete" class="danger" style="display:none;border:0;background:none;margin-top:12px;padding:6px">删除此固定项目</button>
 </form></dialog>
@@ -95,6 +97,9 @@ function render(){
  const opening=state.entries.filter(x=>x.date&&x.date.slice(0,7)<m).reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
  const closing=Number((cumulativeIncome-cumulativeExpenses).toFixed(2));
  $('balance').textContent=euro(closing);
+ const bankBalance=throughMonth.filter(x=>(x.account||'银行卡')==='银行卡').reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
+ const cashBalance=throughMonth.filter(x=>x.account==='现金').reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
+ $('bankBalance').textContent=euro(bankBalance);$('cashBalance').textContent=euro(cashBalance);
  $('openingBalanceText').textContent='本月期初余额（上月结转） '+euro(opening);
  $('balanceFormula').textContent='累计收入 '+euro(cumulativeIncome)+' − 累计支出 '+euro(cumulativeExpenses);
  $('income').textContent=euro(inc);$('expense').textContent=euro(exp);$('monthlyNet').textContent=euro(inc-exp);$('count').textContent=rows.length+' 笔';
@@ -163,13 +168,13 @@ function escapeReportText(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&
 function fillCats(kind,selected){$('category').innerHTML='';cats[kind].forEach(c=>{let o=document.createElement('option');o.value=c;o.textContent=c;$('category').append(o)});if(selected)$('category').value=selected}
 function openEditor(old=null,kind='支出'){
  editing=old?.id||null;$('formTitle').textContent=old?'编辑账目':'新增账目';$('kind').value=old?.kind||kind;fillCats($('kind').value,old?.category);
- $('amount').value=old?.amount??'';$('date').value=old?.date||today();$('note').value=old?.note||'';$('delete').style.display=old?'block':'none';$('editor').showModal();
+ $('amount').value=old?.amount??'';$('date').value=old?.date||today();$('account').value=old?.account||'银行卡';$('note').value=old?.note||'';$('delete').style.display=old?'block':'none';$('editor').showModal();
 }
 $('kind').addEventListener('change',()=>fillCats($('kind').value));
 $('addExpense').onclick=()=>openEditor(null,'支出');$('addIncome').onclick=()=>openEditor(null,'收入');
 $('cancel').onclick=()=>$('editor').close();
 $('entryForm').onsubmit=e=>{e.preventDefault();const amount=Number($('amount').value);if(!Number.isFinite(amount)||amount<=0)return;
- const item={id:editing||crypto.randomUUID(),kind:$('kind').value,amount,category:$('category').value,date:$('date').value||today(),note:$('note').value.trim(),created:Date.now()};
+ const item={id:editing||crypto.randomUUID(),kind:$('kind').value,amount,category:$('category').value,account:$('account').value||'银行卡',date:$('date').value||today(),note:$('note').value.trim(),created:Date.now()};
  if(editing)state.entries=state.entries.map(x=>x.id===editing?item:x);else state.entries.push(item);
  $('editor').close();persist();if(!editing)playTransactionSound(item.kind)};
 $('delete').onclick=()=>{if(confirm('确定删除这笔账目吗？')){state.entries=state.entries.filter(x=>x.id!==editing);$('editor').close();persist()}};
@@ -178,22 +183,22 @@ $('budgetBtn').onclick=()=>{$('budgetAmount').value=state.budgets[$('month').val
 $('budgetCancel').onclick=()=>$('budgetDialog').close();
 $('budgetForm').onsubmit=e=>{e.preventDefault();const v=Number($('budgetAmount').value);if(v>=0){state.budgets[$('month').value]=v;$('budgetDialog').close();persist()}};
 function download(name,content,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-$('exportBtn').onclick=()=>{const rows=[['日期','类型','金额EUR','分类','备注'],...state.entries.map(x=>[x.date,x.kind,x.amount,x.category,x.note])];const csv='\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\r\n');download('我的账本.csv',csv,'text/csv;charset=utf-8')};
+$('exportBtn').onclick=()=>{const rows=[['日期','类型','金额EUR','分类','资金账户','备注'],...state.entries.map(x=>[x.date,x.kind,x.amount,x.category,x.account||'银行卡',x.note])];const csv='\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\r\n');download('我的账本.csv',csv,'text/csv;charset=utf-8')};
 $('backupBtn').onclick=()=>download('我的账本备份.json',JSON.stringify(state,null,2),'application/json');
 $('importBtn').onclick=()=>$('fileInput').click();
 $('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!Array.isArray(x.entries)||!x.budgets)throw Error();if(confirm('恢复备份会替换当前账本数据，建议先导出当前备份。继续吗？')){state=x;persist();alert('恢复成功')}}catch{alert('文件格式不正确，无法恢复')}e.target.value=''};
 let editingFixed=null;
-function openFixed(old=null){editingFixed=old?.id||null;$('fixedTitle').textContent=old?'编辑固定开销':'新增固定开销';$('fixedName').value=old?.name||'';$('fixedAmount').value=old?.amount??'';$('fixedCategory').value=old?.category||'其他';$('fixedDay').value=old?.day||1;$('fixedDelete').style.display=old?'block':'none';$('fixedDialog').showModal()}
+function openFixed(old=null){editingFixed=old?.id||null;$('fixedTitle').textContent=old?'编辑固定开销':'新增固定开销';$('fixedName').value=old?.name||'';$('fixedAmount').value=old?.amount??'';$('fixedCategory').value=old?.category||'其他';$('fixedDay').value=old?.day||1;$('fixedAccount').value=old?.account||'银行卡';$('fixedDelete').style.display=old?'block':'none';$('fixedDialog').showModal()}
 function confirmFixedPaid(f,m){
  const key=f.id+'_'+m;if(state.fixedPayments[key])return;
  if(!confirm('确认 '+f.name+' '+euro(f.amount)+' 已经支付？确认后会计入 '+m+' 的支出。'))return;
- state.entries.push({id:crypto.randomUUID(),kind:'支出',amount:Number(f.amount),category:f.category,date:today(),note:'固定开销：'+f.name,fixedId:f.id,fixedMonth:m,created:Date.now()});
+ state.entries.push({id:crypto.randomUUID(),kind:'支出',amount:Number(f.amount),category:f.category,date:today(),note:'固定开销：'+f.name,account:f.account||'银行卡',fixedId:f.id,fixedMonth:m,created:Date.now()});
  state.fixedPayments[key]=true;persist();playTransactionSound('支出');
 }
 $('manageFixed').onclick=()=>openFixed();
 $('fixedCancel').onclick=()=>$('fixedDialog').close();
 $('fixedForm').onsubmit=e=>{e.preventDefault();const name=$('fixedName').value.trim(),amount=Number($('fixedAmount').value),day=Number($('fixedDay').value);if(!name||amount<=0||day<1||day>31)return;
- const item={id:editingFixed||crypto.randomUUID(),name,amount,category:$('fixedCategory').value,day};
+ const item={id:editingFixed||crypto.randomUUID(),name,amount,category:$('fixedCategory').value,day,account:$('fixedAccount').value||'银行卡'};
  if(editingFixed)state.fixedExpenses=state.fixedExpenses.map(x=>x.id===editingFixed?item:x);else state.fixedExpenses.push(item);
  $('fixedDialog').close();persist()};
 $('fixedDelete').onclick=()=>{if(confirm('删除这个固定开销项目？已生成的历史支出记录不会删除。')){state.fixedExpenses=state.fixedExpenses.filter(x=>x.id!==editingFixed);$('fixedDialog').close();persist()}};
