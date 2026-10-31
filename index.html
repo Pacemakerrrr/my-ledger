@@ -24,6 +24,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid #a8d6bd;border-color:v
 dialog{border:0;border-radius:20px;padding:0;width:min(92vw,440px);box-shadow:0 20px 60px #0003}dialog::backdrop{background:#14251dcc}.modal{padding:20px}.modal h2{margin:0 0 14px;font-size:19px}.field{display:grid;gap:6px;margin:11px 0}.field label{font-size:12px;color:var(--muted)}.field input,.field select{width:100%}.modalfoot{display:flex;gap:8px;margin-top:18px}.modalfoot button{flex:1}.danger{color:var(--red)!important}.budgetline{font-size:12px;color:var(--muted);margin-top:12px}.bar{height:7px;background:#ffffff40;border-radius:9px;overflow:hidden;margin-top:7px}.bar span{display:block;height:100%;background:#fff;width:0}
 footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 @media(min-width:520px){main{padding-top:28px}}
+
+.reportCard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;margin:12px 0}.reportGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:12px 0}.reportMetric{background:#f4f7f5;border-radius:12px;padding:11px}.reportMetric small{display:block;color:var(--muted);font-size:11px}.reportMetric b{display:block;font-size:17px;margin-top:4px}.reportList{margin:8px 0 0;padding-left:20px}.reportList li{margin:6px 0}.reportNote{color:var(--muted);font-size:12px;line-height:1.6}
 </style>
 </head>
 <body><main>
@@ -40,9 +42,10 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 <div class="sectionhead"><h2>账目明细</h2><span class="sub" id="count">0 笔</span></div>
 <div class="list" id="entries"></div>
 <div class="sectionhead"><h2>管理与备份</h2></div>
-<div class="tools"><button id="budgetBtn">设置月预算</button><button id="exportBtn">导出 CSV</button><button id="backupBtn">备份 JSON</button><button id="importBtn">恢复 JSON</button><input id="fileInput" type="file" accept=".json,application/json" hidden></div>
+<div class="tools"><button id="budgetBtn">设置月预算</button><button id="monthlyReportBtn">月度报告</button><button id="exportBtn">导出 CSV</button><button id="backupBtn">备份 JSON</button><button id="importBtn">恢复 JSON</button><input id="fileInput" type="file" accept=".json,application/json" hidden></div>
 <footer>数据仅保存在当前浏览器的本机存储中。清除浏览器数据或卸载浏览器可能导致账目丢失，请定期备份。</footer>
 </main>
+<dialog id="monthlyReportDialog"><div class="modal"><h2 id="reportTitle">📊 月度财富报告</h2><div id="reportContent"></div><div class="modalfoot"><button type="button" id="reportClose" class="btn">知道了</button></div></div></dialog>
 <dialog id="editor"><form method="dialog" class="modal" id="entryForm"><h2 id="formTitle">新增账目</h2>
 <div class="field"><label>类型</label><select id="kind"><option value="支出">支出</option><option value="收入">收入</option></select></div>
 <div class="field"><label>金额（EUR €）</label><input id="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="例如 12.50" required></div>
@@ -63,7 +66,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 </form></dialog>
 <script>
 const $=id=>document.getElementById(id), KEY='my-ledger-v1';
-const today=()=>new Date().toISOString().slice(0,10), monthNow=()=>today().slice(0,7);
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}, monthNow=()=>today().slice(0,7);
 let state=load(), editing=null;
 function load(){try{const x=JSON.parse(localStorage.getItem(KEY))||{};return {...x,entries:Array.isArray(x.entries)?x.entries:[],budgets:x.budgets||{},fixedExpenses:Array.isArray(x.fixedExpenses)?x.fixedExpenses:[],fixedPayments:x.fixedPayments||{}}}catch{return{entries:[],budgets:{},fixedExpenses:[],fixedPayments:{}}}}
 function persist(){localStorage.setItem(KEY,JSON.stringify(state));render()}
@@ -113,6 +116,38 @@ function render(){
   el.append(dot,details,amt);el.addEventListener('click',()=>openEditor(e));$('entries').append(el);
  });
 }
+function monthLabel(m){const [y,mo]=m.split('-').map(Number);return `${y}年${mo}月`}
+function makeMonthlyReport(m){
+ const rows=state.entries.filter(x=>x.date&&x.date.slice(0,7)===m);
+ const income=rows.filter(x=>x.kind==='收入').reduce((a,x)=>a+Number(x.amount||0),0);
+ const expenses=rows.filter(x=>x.kind==='支出').reduce((a,x)=>a+Number(x.amount||0),0);
+ const balance=income-expenses;
+ const groups={};rows.filter(x=>x.kind==='支出').forEach(x=>{groups[x.category||'其他']=(groups[x.category||'其他']||0)+Number(x.amount||0)});
+ const top=Object.entries(groups).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([category,amount])=>({category,amount}));
+ const fixed=rows.filter(x=>x.kind==='支出'&&x.fixedId).reduce((a,x)=>a+Number(x.amount||0),0);
+ const budget=Number(state.budgets[m]||0);
+ return {month:m,income,expenses,balance,count:rows.length,top,fixed,fixedRatio:expenses?fixed/expenses*100:0,budget,budgetUsed:budget?expenses/budget*100:0,savingsRate:income>0?balance/income*100:0,createdAt:Date.now()};
+}
+function localMonthNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function generatePendingMonthlyReports(){
+ state.monthlyReports=state.monthlyReports||{};
+ const current=localMonthNow();
+ const months=[...new Set(state.entries.filter(x=>x.date&&x.date.slice(0,7)<current).map(x=>x.date.slice(0,7)))].sort();
+ const created=[];
+ months.forEach(m=>{if(!state.monthlyReports[m]){state.monthlyReports[m]=makeMonthlyReport(m);created.push(m)}});
+ if(created.length)localStorage.setItem(KEY,JSON.stringify(state));
+ return created;
+}
+function showMonthlyReport(m){
+ const r=state.monthlyReports?.[m];if(!r)return;
+ $('reportTitle').textContent='📊 '+monthLabel(m)+'财富报告';
+ const metric=(label,value)=>`<div class="reportMetric"><small>${label}</small><b>${value}</b></div>`;
+ const top=r.top?.length?r.top.map((x,i)=>`<li>${i+1}. ${escapeReportText(x.category)}：${euro(x.amount)}</li>`).join(''):'<li>本月暂无支出记录</li>';
+ const diff=r.balance>=0?'结余':'超出收入';
+ $('reportContent').innerHTML=`<div class="reportCard"><div class="reportNote">本月共记录 ${r.count} 笔账目</div><div class="reportGrid">${metric('总收入',euro(r.income))}${metric('总支出',euro(r.expenses))}${metric('本月结余',euro(r.balance))}${metric('储蓄率',r.income>0?r.savingsRate.toFixed(1)+'%':'暂无收入')}</div><div><b>${diff}：${euro(Math.abs(r.balance))}</b></div></div><div class="reportCard"><b>🏆 消费前三名</b><ol class="reportList">${top}</ol></div><div class="reportCard"><b>🏠 固定开销</b><p>已确认支付 ${euro(r.fixed)}，占总支出的 ${Number(r.fixedRatio||0).toFixed(1)}%。</p>${r.budget?`<p>预算 ${euro(r.budget)}，使用 ${Number(r.budgetUsed||0).toFixed(1)}%。</p>`:`<p>本月未设置预算。</p>`}</div><div class="reportCard"><b>💡 下月小建议</b><p>${r.income<=0?'下个月先记录完整收入，才能更准确地看清结余。':r.balance<0?'本月支出超过收入，下个月可以先检查金额最高的消费分类。':r.savingsRate<20?'本月有结余，试着把储蓄率逐步提高到 20%。':'保持这个节奏！可以继续巩固储蓄习惯。'}</p></div><p class="reportNote">报告在你下次打开账本时自动生成并保存在本机。不会修改原始账目。</p>`;
+ $('monthlyReportDialog').showModal();
+}
+function escapeReportText(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fillCats(kind,selected){$('category').innerHTML='';cats[kind].forEach(c=>{let o=document.createElement('option');o.value=c;o.textContent=c;$('category').append(o)});if(selected)$('category').value=selected}
 function openEditor(old=null,kind='支出'){
  editing=old?.id||null;$('formTitle').textContent=old?'编辑账目':'新增账目';$('kind').value=old?.kind||kind;fillCats($('kind').value,old?.category);
@@ -122,7 +157,7 @@ $('kind').addEventListener('change',()=>fillCats($('kind').value));
 $('addExpense').onclick=()=>openEditor(null,'支出');$('addIncome').onclick=()=>openEditor(null,'收入');
 $('cancel').onclick=()=>$('editor').close();
 $('entryForm').onsubmit=e=>{e.preventDefault();const amount=Number($('amount').value);if(!Number.isFinite(amount)||amount<=0)return;
- const item={id:editing||crypto.randomUUID(),kind:$('kind').value,amount,category:$('category').value,date:$('date').value,note:$('note').value.trim(),created:Date.now()};
+ const item={id:editing||crypto.randomUUID(),kind:$('kind').value,amount,category:$('category').value,date:$('date').value||today(),note:$('note').value.trim(),created:Date.now()};
  if(editing)state.entries=state.entries.map(x=>x.id===editing?item:x);else state.entries.push(item);
  $('editor').close();persist();if(!editing)playTransactionSound(item.kind)};
 $('delete').onclick=()=>{if(confirm('确定删除这笔账目吗？')){state.entries=state.entries.filter(x=>x.id!==editing);$('editor').close();persist()}};
@@ -151,6 +186,8 @@ $('fixedForm').onsubmit=e=>{e.preventDefault();const name=$('fixedName').value.t
  $('fixedDialog').close();persist()};
 $('fixedDelete').onclick=()=>{if(confirm('删除这个固定开销项目？已生成的历史支出记录不会删除。')){state.fixedExpenses=state.fixedExpenses.filter(x=>x.id!==editingFixed);$('fixedDialog').close();persist()}};
 $('fixedList').addEventListener('dblclick',e=>{const row=e.target.closest('.item');if(!row)return;const idx=[...$('fixedList').children].indexOf(row);const f=state.fixedExpenses[idx];if(f)openFixed(f)});
+$('monthlyReportBtn').onclick=()=>{const months=Object.keys(state.monthlyReports||{}).sort();if(!months.length){alert('目前还没有已结束月份的报告。下个月开始，打开账本后会自动生成。');return;}showMonthlyReport(months[months.length-1]);};
+$('reportClose').onclick=()=>$('monthlyReportDialog').close();
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
-render();
+const newlyCreatedReports=generatePendingMonthlyReports();render();if(newlyCreatedReports.length)showMonthlyReport(newlyCreatedReports[newlyCreatedReports.length-1]);
 </script></body></html>
