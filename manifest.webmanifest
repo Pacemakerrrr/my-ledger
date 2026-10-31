@@ -1,0 +1,11 @@
+{
+  "name": "我的账本",
+  "short_name": "记账本",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f5",
+  "theme_color": "#176b4a",
+  "lang": "zh-CN",
+  "description": "离线私人记账本"
+}
