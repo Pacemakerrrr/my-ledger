@@ -32,8 +32,8 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 <header class="top"><div><h1>我的账本</h1><div class="sub">离线记账 · 数据保存在此设备</div></div><span class="pill" id="offline">私人账本</span></header>
 <div class="month"><input id="month" type="month"><button id="thisMonth">本月</button></div>
 <section class="summary">
- <small>账户累计余额（含上月结转）</small><div class="balance" id="balance">€0.00</div><div class="budgetline" id="openingBalanceText">本月期初余额 €0.00</div>
- <div class="totals"><div><small>收入</small><strong id="income">€0.00</strong></div><div><small>支出</small><strong id="expense">€0.00</strong></div></div>
+ <small>💰 当前累计总余额（上月结转 + 本月收入 − 本月支出）</small><div class="balance" id="balance">€0.00</div><div class="budgetline" id="openingBalanceText">本月期初余额 €0.00</div><div class="budgetline" id="balanceFormula">累计收入 €0.00 − 累计支出 €0.00</div>
+ <div class="totals"><div><small>本月收入</small><strong id="income">€0.00</strong></div><div><small>本月支出</small><strong id="expense">€0.00</strong></div><div><small>本月结余（收入－支出）</small><strong id="monthlyNet">€0.00</strong></div></div>
  <div class="budgetline" id="budgetText">尚未设置月预算</div><div class="bar"><span id="budgetBar"></span></div>
 </section>
 <div class="actions"><button class="btn" id="addExpense">− 记一笔支出</button><button class="btn out" id="addIncome">＋ 记一笔收入</button></div>
@@ -87,9 +87,17 @@ const euro=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).f
 function render(){
  const m=$('month').value||monthNow(), rows=state.entries.filter(x=>x.date.startsWith(m)).sort((a,b)=>b.date.localeCompare(a.date)||b.created-a.created);
  const inc=rows.filter(x=>x.kind==='收入').reduce((s,x)=>s+x.amount,0), exp=rows.filter(x=>x.kind==='支出').reduce((s,x)=>s+x.amount,0), bud=Number(state.budgets[m]||0);
+ // 余额按完整流水累计：所有不晚于所选月份的收入减支出。
+ // 不把每个月的期末余额再次相加，避免把结转资金重复计算。
+ const throughMonth=state.entries.filter(x=>x.date&&x.date.slice(0,7)<=m);
+ const cumulativeIncome=throughMonth.filter(x=>x.kind==='收入').reduce((sum,x)=>sum+Number(x.amount||0),0);
+ const cumulativeExpenses=throughMonth.filter(x=>x.kind==='支出').reduce((sum,x)=>sum+Number(x.amount||0),0);
  const opening=state.entries.filter(x=>x.date&&x.date.slice(0,7)<m).reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
- const closing=opening+inc-exp;
- $('balance').textContent=euro(closing);$('openingBalanceText').textContent='本月期初余额 '+euro(opening);$('income').textContent=euro(inc);$('expense').textContent=euro(exp);$('count').textContent=rows.length+' 笔';
+ const closing=Number((cumulativeIncome-cumulativeExpenses).toFixed(2));
+ $('balance').textContent=euro(closing);
+ $('openingBalanceText').textContent='本月期初余额（上月结转） '+euro(opening);
+ $('balanceFormula').textContent='累计收入 '+euro(cumulativeIncome)+' − 累计支出 '+euro(cumulativeExpenses);
+ $('income').textContent=euro(inc);$('expense').textContent=euro(exp);$('monthlyNet').textContent=euro(inc-exp);$('count').textContent=rows.length+' 笔';
  $('budgetText').textContent=bud?`本月预算 ${euro(bud)} · 已使用 ${Math.round(exp/bud*100)}%`:'尚未设置月预算';
  $('budgetBar').style.width=bud?Math.min(100,exp/bud*100)+'%':'0%';
  const fixedRows=state.fixedExpenses||[], paid=state.fixedPayments||{};
