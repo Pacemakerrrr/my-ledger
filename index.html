@@ -32,7 +32,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 <header class="top"><div><h1>我的账本</h1><div class="sub">离线记账 · 数据保存在此设备</div></div><span class="pill" id="offline">私人账本</span></header>
 <div class="month"><input id="month" type="month"><button id="thisMonth">本月</button></div>
 <section class="summary">
- <small>本月结余</small><div class="balance" id="balance">€0.00</div>
+ <small>账户累计余额（含上月结转）</small><div class="balance" id="balance">€0.00</div><div class="budgetline" id="openingBalanceText">本月期初余额 €0.00</div>
  <div class="totals"><div><small>收入</small><strong id="income">€0.00</strong></div><div><small>支出</small><strong id="expense">€0.00</strong></div></div>
  <div class="budgetline" id="budgetText">尚未设置月预算</div><div class="bar"><span id="budgetBar"></span></div>
 </section>
@@ -87,8 +87,10 @@ const euro=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).f
 function render(){
  const m=$('month').value||monthNow(), rows=state.entries.filter(x=>x.date.startsWith(m)).sort((a,b)=>b.date.localeCompare(a.date)||b.created-a.created);
  const inc=rows.filter(x=>x.kind==='收入').reduce((s,x)=>s+x.amount,0), exp=rows.filter(x=>x.kind==='支出').reduce((s,x)=>s+x.amount,0), bud=Number(state.budgets[m]||0);
- $('balance').textContent=euro(inc-exp);$('income').textContent=euro(inc);$('expense').textContent=euro(exp);$('count').textContent=rows.length+' 笔';
- $('budgetText').textContent=bud?`预算 ${euro(bud)} · 已使用 ${Math.round(exp/bud*100)}%`:'尚未设置月预算';
+ const opening=state.entries.filter(x=>x.date&&x.date.slice(0,7)<m).reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
+ const closing=opening+inc-exp;
+ $('balance').textContent=euro(closing);$('openingBalanceText').textContent='本月期初余额 '+euro(opening);$('income').textContent=euro(inc);$('expense').textContent=euro(exp);$('count').textContent=rows.length+' 笔';
+ $('budgetText').textContent=bud?`本月预算 ${euro(bud)} · 已使用 ${Math.round(exp/bud*100)}%`:'尚未设置月预算';
  $('budgetBar').style.width=bud?Math.min(100,exp/bud*100)+'%':'0%';
  const fixedRows=state.fixedExpenses||[], paid=state.fixedPayments||{};
  $('fixedList').innerHTML=fixedRows.length?'':'<div class="empty">还没有固定开销。点击「管理项目」添加房租、话费等每月账单。</div>';
@@ -121,21 +123,23 @@ function makeMonthlyReport(m){
  const rows=state.entries.filter(x=>x.date&&x.date.slice(0,7)===m);
  const income=rows.filter(x=>x.kind==='收入').reduce((a,x)=>a+Number(x.amount||0),0);
  const expenses=rows.filter(x=>x.kind==='支出').reduce((a,x)=>a+Number(x.amount||0),0);
+ const openingBalance=state.entries.filter(x=>x.date&&x.date.slice(0,7)<m).reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
  const balance=income-expenses;
+ const closingBalance=openingBalance+balance;
  const groups={};rows.filter(x=>x.kind==='支出').forEach(x=>{groups[x.category||'其他']=(groups[x.category||'其他']||0)+Number(x.amount||0)});
  const top=Object.entries(groups).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([category,amount])=>({category,amount}));
  const fixed=rows.filter(x=>x.kind==='支出'&&x.fixedId).reduce((a,x)=>a+Number(x.amount||0),0);
  const budget=Number(state.budgets[m]||0);
- return {month:m,income,expenses,balance,count:rows.length,top,fixed,fixedRatio:expenses?fixed/expenses*100:0,budget,budgetUsed:budget?expenses/budget*100:0,savingsRate:income>0?balance/income*100:0,createdAt:Date.now()};
+ return {month:m,openingBalance,income,expenses,balance,closingBalance,count:rows.length,top,fixed,fixedRatio:expenses?fixed/expenses*100:0,budget,budgetUsed:budget?expenses/budget*100:0,savingsRate:income>0?balance/income*100:0,createdAt:state.monthlyReports?.[m]?.createdAt||Date.now()};
 }
 function localMonthNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function generatePendingMonthlyReports(){
  state.monthlyReports=state.monthlyReports||{};
  const current=localMonthNow();
- const months=[...new Set(state.entries.filter(x=>x.date&&x.date.slice(0,7)<current).map(x=>x.date.slice(0,7)))].sort();
+ const months=[...new Set([...state.entries.filter(x=>x.date&&x.date.slice(0,7)<current).map(x=>x.date.slice(0,7)),...Object.keys(state.monthlyReports).filter(m=>m<current)])].sort();
  const created=[];
- months.forEach(m=>{if(!state.monthlyReports[m]){state.monthlyReports[m]=makeMonthlyReport(m);created.push(m)}});
- if(created.length)localStorage.setItem(KEY,JSON.stringify(state));
+ months.forEach(m=>{const existed=!!state.monthlyReports[m];state.monthlyReports[m]=makeMonthlyReport(m);if(!existed)created.push(m)});
+ if(months.length)localStorage.setItem(KEY,JSON.stringify(state));
  return created;
 }
 function showMonthlyReport(m){
@@ -144,7 +148,7 @@ function showMonthlyReport(m){
  const metric=(label,value)=>`<div class="reportMetric"><small>${label}</small><b>${value}</b></div>`;
  const top=r.top?.length?r.top.map((x,i)=>`<li>${i+1}. ${escapeReportText(x.category)}：${euro(x.amount)}</li>`).join(''):'<li>本月暂无支出记录</li>';
  const diff=r.balance>=0?'结余':'超出收入';
- $('reportContent').innerHTML=`<div class="reportCard"><div class="reportNote">本月共记录 ${r.count} 笔账目</div><div class="reportGrid">${metric('总收入',euro(r.income))}${metric('总支出',euro(r.expenses))}${metric('本月结余',euro(r.balance))}${metric('储蓄率',r.income>0?r.savingsRate.toFixed(1)+'%':'暂无收入')}</div><div><b>${diff}：${euro(Math.abs(r.balance))}</b></div></div><div class="reportCard"><b>🏆 消费前三名</b><ol class="reportList">${top}</ol></div><div class="reportCard"><b>🏠 固定开销</b><p>已确认支付 ${euro(r.fixed)}，占总支出的 ${Number(r.fixedRatio||0).toFixed(1)}%。</p>${r.budget?`<p>预算 ${euro(r.budget)}，使用 ${Number(r.budgetUsed||0).toFixed(1)}%。</p>`:`<p>本月未设置预算。</p>`}</div><div class="reportCard"><b>💡 下月小建议</b><p>${r.income<=0?'下个月先记录完整收入，才能更准确地看清结余。':r.balance<0?'本月支出超过收入，下个月可以先检查金额最高的消费分类。':r.savingsRate<20?'本月有结余，试着把储蓄率逐步提高到 20%。':'保持这个节奏！可以继续巩固储蓄习惯。'}</p></div><p class="reportNote">报告在你下次打开账本时自动生成并保存在本机。不会修改原始账目。</p>`;
+ $('reportContent').innerHTML=`<div class="reportCard"><div class="reportNote">本月共记录 ${r.count} 笔账目</div><div class="reportGrid">${metric('上月结转 / 期初余额',euro(r.openingBalance||0))}${metric('本月总收入',euro(r.income))}${metric('本月总支出',euro(r.expenses))}${metric('本月收支差额',euro(r.balance))}${metric('月末累计余额',euro(r.closingBalance??((r.openingBalance||0)+r.balance)))}${metric('储蓄率',r.income>0?r.savingsRate.toFixed(1)+'%':'暂无收入')}</div><div><b>${diff}：${euro(Math.abs(r.balance))}</b></div></div><div class="reportCard"><b>🏆 消费前三名</b><ol class="reportList">${top}</ol></div><div class="reportCard"><b>🏠 固定开销</b><p>已确认支付 ${euro(r.fixed)}，占总支出的 ${Number(r.fixedRatio||0).toFixed(1)}%。</p>${r.budget?`<p>预算 ${euro(r.budget)}，使用 ${Number(r.budgetUsed||0).toFixed(1)}%。</p>`:`<p>本月未设置预算。</p>`}</div><div class="reportCard"><b>💡 下月小建议</b><p>${r.income<=0?'下个月先记录完整收入，才能更准确地看清结余。':r.balance<0?'本月支出超过收入，下个月可以先检查金额最高的消费分类。':r.savingsRate<20?'本月有结余，试着把储蓄率逐步提高到 20%。':'保持这个节奏！可以继续巩固储蓄习惯。'}</p></div><p class="reportNote">报告在新月份首次打开账本时自动生成并保存在本机；历史账目有修改时，报告会重新计算。月末余额会自动结转到下个月。</p>`;
  $('monthlyReportDialog').showModal();
 }
 function escapeReportText(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
