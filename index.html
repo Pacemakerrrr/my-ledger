@@ -36,7 +36,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
  <small>💰 当前累计总余额（上月结转 + 本月收入 − 本月支出）</small><div class="balance" id="balance">€0.00</div><div class="budgetline" id="openingBalanceText">本月期初余额 €0.00</div><div class="budgetline" id="balanceFormula">累计收入 €0.00 − 累计支出 €0.00</div><div class="totals" style="margin:10px 0"><div><small>🏦 银行卡余额</small><strong id="bankBalance">€0.00</strong></div><div><small>💵 现金余额</small><strong id="cashBalance">€0.00</strong></div></div>  <div class="totals"><div><small>本月收入</small><strong id="income">€0.00</strong></div><div><small>本月支出</small><strong id="expense">€0.00</strong></div><div><small>本月结余（收入－支出）</small><strong id="monthlyNet">€0.00</strong></div></div>
  <div class="budgetline" id="budgetText">尚未设置月预算</div><div class="bar"><span id="budgetBar"></span></div>
 </section>
-<div class="actions"><button class="btn" id="addExpense">− 记一笔支出</button><button class="btn out" id="addIncome">＋ 记一笔收入</button></div>
+<div class="actions"><button class="btn" id="addExpense">− 记一笔支出</button><button class="btn out" id="addIncome">＋ 记一笔收入</button></div><div style="margin:10px 0 18px"><button id="adjustAccounts" style="width:100%;background:#e7f3ed;color:#176b4d;border:1px solid #cfe5d9">⚖️ 调整现金 / 银行卡余额（不计收入支出）</button></div>
 <div class="sectionhead"><h2>每月固定开销</h2><button id="manageFixed" style="font-size:12px;padding:8px 11px">管理项目</button></div>
 <div class="list" id="fixedList"></div>
 <div class="sectionhead"><h2>账目明细</h2><span class="sub" id="count">0 笔</span></div>
@@ -56,6 +56,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin:24px 0 0}
 <div class="modalfoot"><button type="button" id="cancel">取消</button><button class="btn" type="submit">保存</button></div>
 <button type="button" id="delete" class="danger" style="display:none;border:0;background:none;margin-top:12px;padding:6px">删除这笔账目</button>
 </form></dialog>
+<dialog id="accountAdjustDialog"><form method="dialog" class="modal" id="accountAdjustForm"><h2>⚖️ 调整账户余额</h2><p class="sub">只重新分配现金和银行卡里的钱，不会新增收入或支出，也不会改变总余额。</p><div class="field"><label>当前总余额</label><strong id="adjustTotal" style="font-size:24px;color:var(--green)">€0.00</strong></div><div class="field"><label>现金实际有多少？（EUR €）</label><input id="adjustCash" type="number" min="0" step="0.01" inputmode="decimal" required></div><div class="field"><label>银行卡余额将自动变为</label><strong id="adjustBank" style="font-size:20px">€0.00</strong></div><div class="accountHint">例如：总余额 1,352.69€，现金填 200€，银行卡自动变成 1,152.69€。</div><div class="modalfoot"><button type="button" id="adjustCancel">取消</button><button class="btn" type="submit">保存余额分配</button></div></form></dialog>
 <dialog id="budgetDialog"><form method="dialog" class="modal" id="budgetForm"><h2>设置每月支出预算</h2><div class="field"><label>预算金额（EUR €）</label><input id="budgetAmount" type="number" min="0" step=".01" placeholder="例如 1200"></div><div class="modalfoot"><button type="button" id="budgetCancel">取消</button><button class="btn" type="submit">保存预算</button></div></form></dialog>
 <dialog id="fixedDialog"><form method="dialog" class="modal" id="fixedForm"><h2 id="fixedTitle">新增固定开销</h2>
 <div class="field"><label>项目名称</label><input id="fixedName" maxlength="40" placeholder="例如 房租、手机费" required></div>
@@ -97,8 +98,13 @@ function render(){
  const opening=state.entries.filter(x=>x.date&&x.date.slice(0,7)<m).reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
  const closing=Number((cumulativeIncome-cumulativeExpenses).toFixed(2));
  $('balance').textContent=euro(closing);
- const bankBalance=throughMonth.filter(x=>(x.account||'银行卡')==='银行卡').reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
- const cashBalance=throughMonth.filter(x=>x.account==='现金').reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
+ const cashEntries=throughMonth.filter(x=>x.account==='现金').reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
+ const bankEntries=throughMonth.filter(x=>(x.account||'银行卡')==='银行卡').reduce((sum,x)=>sum+(x.kind==='收入'?1:-1)*Number(x.amount||0),0);
+ const monthTransfers=(state.transfers||[]).filter(t=>t.date&&t.date.slice(0,7)<=m);
+ const cashTransfers=monthTransfers.reduce((sum,t)=>sum+(t.to==='现金'?1:-1)*Number(t.amount||0),0);
+ const bankTransfers=monthTransfers.reduce((sum,t)=>sum+(t.to==='银行卡'?1:-1)*Number(t.amount||0),0);
+ const cashBalance=Number((cashEntries+cashTransfers).toFixed(2));
+ const bankBalance=Number((bankEntries+bankTransfers).toFixed(2));
  $('bankBalance').textContent=euro(bankBalance);$('cashBalance').textContent=euro(cashBalance);
  $('openingBalanceText').textContent='本月期初余额（上月结转） '+euro(opening);
  $('balanceFormula').textContent='累计收入 '+euro(cumulativeIncome)+' − 累计支出 '+euro(cumulativeExpenses);
@@ -179,6 +185,21 @@ $('entryForm').onsubmit=e=>{e.preventDefault();const amount=Number($('amount').v
  $('editor').close();persist();if(!editing)playTransactionSound(item.kind)};
 $('delete').onclick=()=>{if(confirm('确定删除这笔账目吗？')){state.entries=state.entries.filter(x=>x.id!==editing);$('editor').close();persist()}};
 $('month').value=monthNow();$('month').onchange=render;$('thisMonth').onclick=()=>{$('month').value=monthNow();render()};
+function getLiveAccountBalances(){
+ const cutoff=today();
+ const entries=state.entries.filter(x=>x.date&&x.date<=cutoff);
+ const transfers=(state.transfers||[]).filter(x=>x.date&&x.date<=cutoff);
+ const signed=(x)=>((x.kind==='收入'?1:-1)*Number(x.amount||0));
+ let bank=entries.filter(x=>(x.account||'银行卡')==='银行卡').reduce((a,x)=>a+signed(x),0);
+ let cash=entries.filter(x=>x.account==='现金').reduce((a,x)=>a+signed(x),0);
+ transfers.forEach(t=>{const a=Number(t.amount||0);if(t.to==='现金'){cash+=a;bank-=a}else{bank+=a;cash-=a}});
+ return {bank:Number(bank.toFixed(2)),cash:Number(cash.toFixed(2)),total:Number((bank+cash).toFixed(2))};
+}
+function updateAdjustPreview(){const total=getLiveAccountBalances().total,cash=Number($('adjustCash').value||0),bank=total-cash;$('adjustBank').textContent=euro(bank);$('adjustBank').style.color=bank<0?'var(--red)':'var(--green)'}
+$('adjustAccounts').onclick=()=>{const b=getLiveAccountBalances();$('adjustTotal').textContent=euro(b.total);$('adjustCash').value=Math.max(0,b.cash).toFixed(2);updateAdjustPreview();$('accountAdjustDialog').showModal()};
+$('adjustCash').addEventListener('input',updateAdjustPreview);
+$('adjustCancel').onclick=()=>$('accountAdjustDialog').close();
+$('accountAdjustForm').onsubmit=e=>{e.preventDefault();const before=getLiveAccountBalances(),cash=Number($('adjustCash').value),bank=Number((before.total-cash).toFixed(2));if(!Number.isFinite(cash)||cash<0||bank<0){alert('现金金额不能小于0，也不能超过当前总余额。');return;}const delta=Number((cash-before.cash).toFixed(2));if(Math.abs(delta)>=0.005){state.transfers=state.transfers||[];state.transfers.push({id:crypto.randomUUID(),date:today(),amount:Math.abs(delta),from:delta>0?'银行卡':'现金',to:delta>0?'现金':'银行卡',created:Date.now(),note:'账户余额重新分配'});} $('accountAdjustDialog').close();persist();alert('账户余额分配已保存。总余额和本月收入、支出均未改变。');};
 $('budgetBtn').onclick=()=>{$('budgetAmount').value=state.budgets[$('month').value]||'';$('budgetDialog').showModal()};
 $('budgetCancel').onclick=()=>$('budgetDialog').close();
 $('budgetForm').onsubmit=e=>{e.preventDefault();const v=Number($('budgetAmount').value);if(v>=0){state.budgets[$('month').value]=v;$('budgetDialog').close();persist()}};
